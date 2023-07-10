@@ -60,10 +60,6 @@ impl GridPosition {
     }
 }
 
-/// We implement the `From` trait, which in this case allows us to convert easily between
-/// a `GridPosition` and a ggez `graphics::Rect` which fills that grid cell.
-/// Now we can just call `.into()` on a `GridPosition` where we want a
-/// `Rect` that represents that grid cell.
 impl From<GridPosition> for graphics::Rect {
     fn from(pos: GridPosition) -> Self {
         graphics::Rect::new_i32(
@@ -260,33 +256,19 @@ impl GameState {
     }
 }
 
-/// Now we implement `EventHandler` for `GameState`. This provides an interface
-/// that ggez will call automatically when different events happen.
 impl event::EventHandler<ggez::GameError> for GameState {
-    /// Update will happen on every frame before it is drawn. This is where we update
-    /// our game state to react to whatever is happening in the game world.
+    /// Update will happen on every frame before it is drawn.
     fn update(&mut self, ctx: &mut Context) -> GameResult {
-        // Rely on ggez's built-in timer for deciding when to update the game, and how many times.
-        // If the update is early, there will be no cycles, otherwises, the logic will run once for each
-        // frame fitting in the time since the last update.
         while ctx.time.check_update_time(DESIRED_FPS) {
-            // We check to see if the game is over. If not, we'll update. If so, we'll just do nothing.
             if !self.gameover {
-                // Here we do the actual updating of our game world. First we tell the snake to update itself,
-                // passing in a reference to our piece of food.
                 self.snake.update(&self.food);
-                // Next we check if the snake ate anything as it updated.
                 if let Some(ate) = self.snake.ate {
-                    // If it did, we want to know what it ate.
                     match ate {
-                        // If it ate a piece of food, we randomly select a new position for our piece of food
-                        // and move it to this new position.
                         Ate::Food => {
                             let new_food_pos =
                                 GridPosition::random(&mut self.rng, GRID_SIZE.0, GRID_SIZE.1);
                             self.food.pos = new_food_pos;
                         }
-                        // If it ate itself, we set our gameover state to true.
                         Ate::Itself => {
                             self.gameover = true;
                         }
@@ -298,40 +280,24 @@ impl event::EventHandler<ggez::GameError> for GameState {
         Ok(())
     }
 
-    /// draw is where we should actually render the game's current state.
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
-        // First we create a canvas that renders to the frame, and clear it to a (sort of) green color
         let mut canvas =
             graphics::Canvas::from_frame(ctx, graphics::Color::from([0.0, 1.0, 0.0, 1.0]));
 
-        // Then we tell the snake and the food to draw themselves
         self.snake.draw(&mut canvas);
         self.food.draw(&mut canvas);
 
-        // Finally, we "flush" the draw commands.
-        // Since we rendered to the frame, we don't need to tell ggez to present anything else,
-        // as ggez will automatically present the frame image unless told otherwise.
         canvas.finish(ctx)?;
 
-        // We yield the current thread until the next update
         ggez::timer::yield_now();
-        // And return success.
         Ok(())
     }
 
-    /// `key_down_event` gets fired when a key gets pressed.
     fn key_down_event(&mut self, _ctx: &mut Context, input: KeyInput, _repeat: bool) -> GameResult {
-        // Here we attempt to convert the Keycode into a Direction using the helper
-        // we defined earlier.
         if let Some(dir) = input.keycode.and_then(Direction::from_keycode) {
-            // If it succeeds, we check if a new direction has already been set
-            // and make sure the new direction is different then `snake.dir`
             if self.snake.dir != self.snake.last_update_dir && dir.inverse() != self.snake.dir {
                 self.snake.next_dir = Some(dir);
             } else if dir.inverse() != self.snake.last_update_dir {
-                // If no new direction has been set and the direction is not the inverse
-                // of the `last_update_dir`, then set the snake's new direction to be the
-                // direction the user pressed.
                 self.snake.dir = dir;
             }
         }
@@ -340,18 +306,11 @@ impl event::EventHandler<ggez::GameError> for GameState {
 }
 
 fn main() -> GameResult {
-    // Here we use a ContextBuilder to setup metadata about our game. First the title and author
     let (ctx, events_loop) = ggez::ContextBuilder::new("snake", "Gray Olson")
-        // Next we set up the window. This title will be displayed in the title bar of the window.
         .window_setup(ggez::conf::WindowSetup::default().title("Snake!"))
-        // Now we get to set the size of the window, which we use our SCREEN_SIZE constant from earlier to help with
         .window_mode(ggez::conf::WindowMode::default().dimensions(SCREEN_SIZE.0, SCREEN_SIZE.1))
-        // And finally we attempt to build the context and create the window. If it fails, we panic with the message
-        // "Failed to build ggez context"
         .build()?;
 
-    // Next we create a new instance of our GameState struct, which implements EventHandler
     let state = GameState::new();
-    // And finally we actually run our game, passing in our context and state.
     event::run(ctx, events_loop, state)
 }
