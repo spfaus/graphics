@@ -5,13 +5,20 @@
 //! Author: @termhn
 //! Original repo: <https://github.com/termhn/ggez_snake>
 
-use oorandom::Rand32;
+use ggez::audio;
+use ggez::audio::SoundSource;
+use ggez::glam::*;
+use ggez::input;
+use std::env;
+use std::path;
+use std::time::Duration;
 
 use ggez::{
     event, graphics,
     input::keyboard::{KeyCode, KeyInput},
     Context, GameResult,
 };
+use oorandom::Rand32;
 use std::collections::VecDeque;
 
 const GRID_SIZE: (i16, i16) = (30, 20);
@@ -236,10 +243,11 @@ struct GameState {
     food: Food,
     gameover: bool,
     rng: Rand32,
+    sound: audio::Source,
 }
 
 impl GameState {
-    pub fn new() -> Self {
+    pub fn new(ctx: &mut Context) -> GameResult<Self> {
         let snake_pos = (GRID_SIZE.0 / 4, GRID_SIZE.1 / 2).into();
 
         let mut seed: [u8; 8] = [0; 8];
@@ -247,12 +255,19 @@ impl GameState {
         let mut rng = Rand32::new(u64::from_ne_bytes(seed));
         let food_pos = GridPosition::random(&mut rng, GRID_SIZE.0, GRID_SIZE.1);
 
-        GameState {
+        let sound = audio::Source::new(ctx, "/success.mp3")?;
+
+        Ok(GameState {
             snake: Snake::new(snake_pos),
             food: Food::new(food_pos),
             gameover: false,
             rng,
-        }
+            sound,
+        })
+    }
+
+    fn play_sound(&mut self, ctx: &mut Context) {
+        let _ = self.sound.play(ctx);
     }
 }
 
@@ -306,11 +321,20 @@ impl event::EventHandler<ggez::GameError> for GameState {
 }
 
 fn main() -> GameResult {
-    let (ctx, events_loop) = ggez::ContextBuilder::new("snake", "Gray Olson")
+    let resource_dir = if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
+        let mut path = path::PathBuf::from(manifest_dir);
+        path.push("resources");
+        path
+    } else {
+        path::PathBuf::from("./resources")
+    };
+
+    let (mut ctx, events_loop) = ggez::ContextBuilder::new("snake", "Gray Olson")
+        .add_resource_path(resource_dir)
         .window_setup(ggez::conf::WindowSetup::default().title("Snake!"))
         .window_mode(ggez::conf::WindowMode::default().dimensions(SCREEN_SIZE.0, SCREEN_SIZE.1))
         .build()?;
 
-    let state = GameState::new();
+    let state = GameState::new(&mut ctx)?;
     event::run(ctx, events_loop, state)
 }
